@@ -23,7 +23,7 @@ var exps = {
 	// new lines
 	breaker: (/%#=#%/g),
 	emptyLine: (/\n;\s*\n/g),
-	appendableString: (/";\s*\n\s*_buffer_ \+= "/g),
+	//appendableString: (/";\s*\n\s*_buffer_\.push\( "/g),
 
 	// strings and identifiers
 	strings: (/('|").*?\1/g),
@@ -71,7 +71,7 @@ function parseOperators(_, op){
 function parseEscape(stack, _, exp){
 	// Adapted from DoT.js (https://github.com/olado/doT)
 	return '_strtmp = (' + parseIdents(stack, exp) + ').toString();%#=#%'
-		+ '_buffer_ += _strs[_strtmp] ||'
+		+ '_buffer_.push(_strs[_strtmp]) ||'
 		+ '(_strs[_strtmp] = _strtmp'
 		+ '.replace(/&(?!\\w+;)/g, "&#38;")'
 		+ '.split("<").join("&#60;")'
@@ -180,7 +180,7 @@ function parseIdents(stack, str){
 
 // Main Parser
 function parseStatement(stack, match, inner){
-	var result = '"; %#=#%',
+	var result = '"); %#=#%',
 		prev = inner = inner.replace(exps.operators, parseOperators);
 
 	inner = inner.replace(exps.elseState, parseElse)
@@ -193,16 +193,17 @@ function parseStatement(stack, match, inner){
 		.replace(exps.escapeState, partial(parseEscape, stack));
 
 	if (inner == prev){
-		result += '_buffer_ += ';
+		result += '_buffer_.push( ';
 		inner = parseIdents(stack, inner);
+		inner += ')';
 	}
 
-	return result + inner.replace(/\t|\n|\r/, '') + '; %#=#%_buffer_ += "';
+	return result + inner.replace(/\t|\n|\r/, '') + '; %#=#%_buffer_.push("';
 }
 
 // Cleanup
 function clean(str){
-	return str.replace(/_buffer_\s\+=\s"";/g, '')
+	return str.replace(/_buffer_\s\.push\(\s"\)";/g, '')
 		.replace(/\n/g, '\\n')
 		.replace(/\t/g, '\\t')
 		.replace(/\r/g, '\\r')
@@ -262,7 +263,7 @@ function parseSub(str, slab){
 			return kept[match];
 		});
 
-	return (cache[str] = clean('%#=#%_buffer_ += "' + _str + '";'));
+	return (cache[str] = clean('%#=#%_buffer_.push("' + _str + '");'));
 }
 
 function parse(str, slab){
@@ -299,8 +300,8 @@ function parse(str, slab){
 }
 
 function wrapTemplate(str, id){
-	return 'var _buffer_ = "", _strs = {}, _strtmp;' + str
-		+ '\nreturn _buffer_;\n//@ sourceURL=' + id;
+	return 'var _buffer_ = [], _strs = {}, _strtmp;' + str
+		+ '\nreturn _buffer_.join(\'\');\n//@ sourceURL=' + id;
 }
 
 function compile(str, slab){
